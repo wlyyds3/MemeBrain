@@ -1,0 +1,52 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: memebrain-postgres
+    environment:
+      POSTGRES_USER: memebrain
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-memebrain123}
+      POSTGRES_DB: memebrain
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U memebrain -d memebrain"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: memebrain-backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://memebrain:${POSTGRES_PASSWORD:-memebrain123}@postgres:5432/memebrain
+      SECRET_KEY: ${SECRET_KEY:-dev-only-change-me-before-deploy}
+      ACCESS_TOKEN_EXPIRE_MINUTES: 1440
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      CORS_ORIGINS: http://localhost:3000
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: memebrain-frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+
